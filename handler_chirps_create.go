@@ -3,9 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
-	"time"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/kenzierivan/chirpy/internal/database"
@@ -33,13 +34,18 @@ func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, req *http.Reque
 	err := decoder.Decode(&params)
 	if err != nil {{
 		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+		return
 	}}
 
-	cleanedBody := handlerValidate(w, params.Body)
+	cleanedBody, err := handlerValidate(w, params.Body)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, err.Error(), err)
+	}
 
 	userUUID, err := uuid.Parse(params.UserID)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't parse user_id", err)
+		return
 	}
 	chirp, err := cfg.db.CreateChirp(context.Background(), database.CreateChirpParams{
 		Body: cleanedBody,
@@ -57,10 +63,11 @@ func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, req *http.Reque
 	})
 }
 
-func handlerValidate(w http.ResponseWriter, body string) string {
+func handlerValidate(w http.ResponseWriter, body string) (string, error) {
 	const maxChirpLength = 140
 	if len(body) > maxChirpLength {
 		respondWithError(w, http.StatusBadRequest, "Chirp is too long", nil)
+		return "", errors.New("Chirp is too long")
 	}
 
 	badWords := map[string]struct{} {
@@ -69,7 +76,7 @@ func handlerValidate(w http.ResponseWriter, body string) string {
 		"fornax":    {},
 	} 
 	cleaned := getCleanedBody(body, badWords)
-	return cleaned
+	return cleaned, nil
 }
 
 func getCleanedBody(body string, badWords map[string]struct{}) string {
