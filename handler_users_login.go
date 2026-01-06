@@ -7,18 +7,19 @@ import (
 	"time"
 
 	"github.com/kenzierivan/chirpy/internal/auth"
+	"github.com/kenzierivan/chirpy/internal/database"
 )
 
 func (cfg *apiConfig) handlerUsersLogin(w http.ResponseWriter, req *http.Request) {
 	type parameters struct {
 		Password string `json:"password"`
 		Email string `json:"email"`
-		ExpiresInSecond int `json:"expires_in_seconds,omitempty"`
 	}
 
 	type response struct {
-		User User `json:"user"`
+		User
 		Token string `json:"token"`
+		RefreshToken string `json:"refresh_token"`
 	}
 
 	params := parameters{}
@@ -29,7 +30,7 @@ func (cfg *apiConfig) handlerUsersLogin(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	user, err := cfg.db.GetUserByEmail(context.Background(), params.Email)
+	user, err := cfg.db.GetUserByEmail(req.Context(), params.Email)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, "Incorrect email or password", err)
 		return
@@ -41,13 +42,22 @@ func (cfg *apiConfig) handlerUsersLogin(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	expiresIn := time.Hour
-	if params.ExpiresInSecond > int(time.Hour.Seconds()) {
-		expiresIn = time.Duration(params.ExpiresInSecond)
-	}
-	token, err := auth.MakeJWT(user.ID, cfg.tokenSecret, expiresIn)
+	accessToken, err := auth.MakeJWT(user.ID, cfg.tokenSecret, time.Hour)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "couldn't make jwt", err)
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create jwt", err)
+		return
+	}
+
+	refreshToken := auth.MakeRefreshToken()
+
+	expiresAt := time.Now().UTC().AddDate(0,0,60)
+	_, err = cfg.db.CreateRefreshToken(context.Background(), database.CreateRefreshTokenParams{
+		Token: refreshToken,
+		UserID: user.ID,
+		ExpiresAt: expiresAt,
+	})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't save refresh token", err)
 		return
 	}
 
@@ -58,6 +68,7 @@ func (cfg *apiConfig) handlerUsersLogin(w http.ResponseWriter, req *http.Request
 			UpdatedAt: user.UpdatedAt,
 			Email: user.Email,
 		},
-		Token: token,
-	})
+		Token: accessToken,
+		RefreshToken: refreshToken,
+	})	
 }
