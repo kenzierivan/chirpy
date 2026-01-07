@@ -57,6 +57,7 @@ func (cfg *apiConfig) handlerUsersUpdate(w http.ResponseWriter, req *http.Reques
 			CreatedAt: user.CreatedAt,
 			UpdatedAt: user.UpdatedAt,
 			Email: params.Email,
+			IsChirpyRed: user.IsChirpyRed,
 		},
 	})
 }

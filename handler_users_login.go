@@ -67,6 +67,7 @@ func (cfg *apiConfig) handlerUsersLogin(w http.ResponseWriter, req *http.Request
 			CreatedAt: user.CreatedAt,
 			UpdatedAt: user.UpdatedAt,
 			Email: user.Email,
+			IsChirpyRed: user.IsChirpyRed,
 		},
 		Token: accessToken,
 		RefreshToken: refreshToken,

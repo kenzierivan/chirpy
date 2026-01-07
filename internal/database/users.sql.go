@@ -7,6 +7,7 @@ package database
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -20,7 +21,7 @@ values(
     $1,
     $2
 )
-returning id, created_at, updated_at, email, hashed_password
+returning id, created_at, updated_at, email, hashed_password, is_chirpy_red
 `
 
 type CreateUserParams struct {
@@ -37,12 +38,13 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.UpdatedAt,
 		&i.Email,
 		&i.HashedPassword,
+		&i.IsChirpyRed,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-select id, created_at, updated_at, email, hashed_password
+select id, created_at, updated_at, email, hashed_password, is_chirpy_red
 from users
 where email = $1
 `
@@ -56,12 +58,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.UpdatedAt,
 		&i.Email,
 		&i.HashedPassword,
+		&i.IsChirpyRed,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-select id, created_at, updated_at, email, hashed_password
+select id, created_at, updated_at, email, hashed_password, is_chirpy_red
 from users
 where id = $1
 `
@@ -75,6 +78,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.UpdatedAt,
 		&i.Email,
 		&i.HashedPassword,
+		&i.IsChirpyRed,
 	)
 	return i, err
 }
@@ -88,9 +92,17 @@ where refresh_tokens.token = $1
     and expires_at > now()
 `
 
-func (q *Queries) GetUserFromRefreshToken(ctx context.Context, token string) (User, error) {
+type GetUserFromRefreshTokenRow struct {
+	ID             uuid.UUID
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	Email          string
+	HashedPassword string
+}
+
+func (q *Queries) GetUserFromRefreshToken(ctx context.Context, token string) (GetUserFromRefreshTokenRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserFromRefreshToken, token)
-	var i User
+	var i GetUserFromRefreshTokenRow
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
@@ -116,5 +128,16 @@ type UpdateUserEmailPasswordParams struct {
 
 func (q *Queries) UpdateUserEmailPassword(ctx context.Context, arg UpdateUserEmailPasswordParams) error {
 	_, err := q.db.ExecContext(ctx, updateUserEmailPassword, arg.HashedPassword, arg.Email, arg.ID)
+	return err
+}
+
+const upgradeUser = `-- name: UpgradeUser :exec
+update users
+set is_chirpy_red = true
+where id = $1
+`
+
+func (q *Queries) UpgradeUser(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, upgradeUser, id)
 	return err
 }
