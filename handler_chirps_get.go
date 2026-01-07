@@ -1,6 +1,7 @@
 package main
 
 import (
+	"sort"
 	"context"
 	"net/http"
 
@@ -16,7 +17,6 @@ func (cfg *apiConfig) handlerChirpsList(w http.ResponseWriter, req *http.Request
 
 	authIDStr := req.URL.Query().Get("author_id")
 	authID := uuid.Nil
-
 	if authIDStr != "" {
 		authID, err = uuid.Parse(authIDStr)
 		if err != nil {
@@ -27,7 +27,7 @@ func (cfg *apiConfig) handlerChirpsList(w http.ResponseWriter, req *http.Request
 
 	chirps := []Chirp{}
 	for _, chirp := range dbChirps {
-		if chirp.UserID != authID {
+		if authID != uuid.Nil && chirp.UserID != authID {
 			continue
 		}
 		chirps = append(chirps, Chirp{
@@ -36,6 +36,13 @@ func (cfg *apiConfig) handlerChirpsList(w http.ResponseWriter, req *http.Request
 			UpdatedAt: chirp.UpdatedAt,
 			Body: chirp.Body,
 			UserID: chirp.UserID,
+		})
+	}
+
+	sortParam := req.URL.Query().Get("sort")
+	if sortParam == "desc" {
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].CreatedAt.After(chirps[j].CreatedAt)
 		})
 	}
 	respondWithJSON(w, http.StatusOK, chirps)
