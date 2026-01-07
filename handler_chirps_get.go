@@ -14,8 +14,22 @@ func (cfg *apiConfig) handlerChirpsList(w http.ResponseWriter, req *http.Request
 		return
 	}
 
+	authIDStr := req.URL.Query().Get("author_id")
+	authID := uuid.Nil
+
+	if authIDStr != "" {
+		authID, err = uuid.Parse(authIDStr)
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, "Couldn't parse author_id", err)
+			return
+		}
+	}
+
 	chirps := []Chirp{}
 	for _, chirp := range dbChirps {
+		if chirp.UserID != authID {
+			continue
+		}
 		chirps = append(chirps, Chirp{
 			ID: chirp.ID,
 			CreatedAt: chirp.CreatedAt,
